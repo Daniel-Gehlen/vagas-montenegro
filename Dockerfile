@@ -1,7 +1,7 @@
 FROM php:8.2-alpine
 
 WORKDIR /app
-COPY . .
+COPY index.php /app/
 
 EXPOSE 8000
 
