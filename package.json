@@ -1,0 +1,8 @@
+{
+  "name": "vagas-montenegro",
+  "version": "1.0.0",
+  "description": "Sistema de busca de vagas em Montenegro/RS",
+  "scripts": {
+    "dev": "php -S localhost:3000 api/index.php"
+  }
+}
