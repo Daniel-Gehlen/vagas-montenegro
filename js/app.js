@@ -68,7 +68,6 @@ class VagasApp {
     }
   }
 
-  // No método exibirVagas, modificar para:
   exibirVagas(vagas) {
     const container = document.getElementById("vagasContainer");
 
@@ -85,9 +84,7 @@ class VagasApp {
     container.innerHTML = vagas
       .map(
         (vaga) => `
-        <div class="vaga-card" onclick="abrirVaga('${
-          vaga.link_direto || vaga.contato
-        }')" style="cursor: pointer;">
+        <div class="vaga-card">
             <h3 class="vaga-titulo">${vaga.titulo}</h3>
             <div class="vaga-empresa">🏢 ${vaga.empresa}</div>
             <div class="vaga-detalhes">
@@ -102,8 +99,12 @@ class VagasApp {
             </div>
             <small>🕒 ${vaga.data_publicacao}</small>
             ${
-              vaga.link_direto
-                ? '<div style="margin-top: 10px; color: #667eea; font-weight: bold;">🔗 Clique para ver vaga</div>'
+              vaga.link_direto &&
+              vaga.link_direto !== "#" &&
+              !vaga.link_direto.startsWith("mailto:")
+                ? `<div class="vaga-link" onclick="abrirVaga('${vaga.link_direto}')">
+                    🔗 Clique para ver vaga
+                   </div>`
                 : ""
             }
         </div>
@@ -176,6 +177,7 @@ class VagasApp {
         contato: "rh@languiru.com.br",
         telefone: "(51) 3632-1400",
         data_publicacao: "Publicada há 2 dias",
+        link_direto: "https://www.languiru.com.br/trabalhe-conosco",
       },
       {
         titulo: "Vendedor Experiente",
@@ -189,6 +191,8 @@ class VagasApp {
         contato: "vagas@supermercado-montenegro.com.br",
         telefone: "(51) 99999-9999",
         data_publicacao: "Publicada hoje",
+        link_direto:
+          "https://www.supermercadosmontenegro.com.br/trabalhe-conosco",
       },
       {
         titulo: "Operador de Produção",
@@ -202,6 +206,7 @@ class VagasApp {
         contato: "selecao@industriametalurgica.com",
         telefone: "(51) 3632-2020",
         data_publicacao: "Publicada há 1 semana",
+        link_direto: "https://www.industriametalurgica.com.br/carreiras",
       },
     ];
   }
@@ -243,10 +248,30 @@ function perguntarIA() {
   window.vagasApp.perguntarIA();
 }
 
+// Função para abrir links - CORRIGIDA
+function abrirVaga(url) {
+  console.log("🔗 Tentando abrir URL:", url);
+
+  if (
+    url &&
+    url !== "#" &&
+    url !== "Visite a empresa" &&
+    url.startsWith("http")
+  ) {
+    // Abre em nova aba
+    window.open(url, "_blank", "noopener,noreferrer");
+  } else if (url && url.includes("@")) {
+    // É um email - abre cliente de email
+    window.location.href = `mailto:${url}`;
+  } else {
+    console.warn("URL inválida:", url);
+  }
+}
+
 // Permitir Enter na busca
 document
   .getElementById("searchInput")
-  .addEventListener("keypress", function (e) {
+  ?.addEventListener("keypress", function (e) {
     if (e.key === "Enter") {
       buscarVagas();
     }
@@ -254,15 +279,29 @@ document
 
 document
   .getElementById("aiQuestion")
-  .addEventListener("keypress", function (e) {
+  ?.addEventListener("keypress", function (e) {
     if (e.key === "Enter") {
       perguntarIA();
     }
   });
 
-// Nova função para abrir links
-function abrirVaga(url) {
-  if (url && url !== "#" && url !== "Visite a empresa") {
-    window.open(url, "_blank");
+// Adicionar CSS para o link clicável
+const style = document.createElement("style");
+style.textContent = `
+  .vaga-link {
+    margin-top: 10px;
+    color: #667eea;
+    font-weight: bold;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 5px;
+    display: inline-block;
   }
-}
+  .vaga-link:hover {
+    background: #e9ecef;
+    color: #5a67d8;
+  }
+`;
+document.head.appendChild(style);
