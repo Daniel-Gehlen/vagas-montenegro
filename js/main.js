@@ -3,7 +3,8 @@ import { UiService } from "./ui.js";
 
 class VagasApp {
   constructor() {
-    const apiBase = window.location.origin + "/api";
+    // Always point to the PHP server regardless of which static server serves the HTML
+    const apiBase = "http://localhost:8080/api";
     this.api = new ApiService(apiBase);
     this.ui = new UiService();
     this.init();
@@ -39,10 +40,10 @@ class VagasApp {
     });
 
     document
-      .querySelector(".search-box button")
+      .getElementById("btnBuscar")
       ?.addEventListener("click", () => this.buscarVagas());
     document
-      .querySelector(".ai-input button")
+      .getElementById("btnEnviarIA")
       ?.addEventListener("click", () => this.perguntarIA());
 
     // Event delegation for dynamically created links
