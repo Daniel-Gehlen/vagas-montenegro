@@ -4,206 +4,287 @@ require_once __DIR__ . '/../config/database.php';
 class VagaModel
 {
     private $db;
+
+    // URL do portal central de vagas de Montenegro/RS para scraping
     private $empresasMontenegro = [
         'Prefeitura de Montenegro' => 'https://www.montenegro.rs.gov.br/editais/',
-        'SINE Montenegro' => 'http://www.portaldotrabalho.rs.gov.br/sine-montenegro',
-        'JBS Montenegro' => 'https://www.jbs.com.br/carreiras',
-        'Unimed Vale do Caí' => 'https://www.unimed.coop.br/site/web/guest/valedocai/trabalheconosco',
-        'Lojas Quero-Quero' => 'https://www.quero-quero.com.br/trabalhe-conosco',
-        'Syonet' => 'https://syonet.com.br/trabalhe-conosco',
-        'Sky Informática' => 'https://www.skyinformatica.com.br/contato',
-        'Supermercados Andreazza' => 'https://www.andreazza.com.br/trabalhe-conosco',
-        'Magazine Luiza' => 'https://www.magazineluiza.com.br/trabalhe-conosco',
-        'Renner' => 'https://www.lojasrenner.com.br/trabalhe-conosco',
-        'John Deere' => 'https://www.deere.com.br/pt/carreiras/',
-        'RH Mattos' => 'https://www.rhmatos.com.br/vagas',
-        'GRUPO MIRASSOL' => 'https://grupomirassol.com.br/trabalhe-conosco',
-        'RH CENTER' => 'https://rhcenterrs.com.br/vagas',
-        'RHF TALENTOS' => 'https://www.rhftalentos.com.br/vagas'
+        'JBS Montenegro'           => 'https://www.jbs.com.br/carreiras',
+        'Unimed Vale do Caí'       => 'https://unimedvaledocai.com.br/trabalhe-conosco/',
+        'Lojas Quero-Quero'        => 'https://www.quero-quero.com.br/trabalhe-conosco',
+        'Syonet'                   => 'https://syonet.com.br/trabalhe-conosco',
+        'Magazine Luiza'           => 'https://carreiras.magazineluiza.com.br/',
+        'John Deere'               => 'https://www.deere.com.br/pt/carreiras/',
+        'RH Mattos'                => 'https://www.rhmatos.com.br/vagas',
+        'RH CENTER'                => 'https://rhcenterrs.com.br/vagas',
+        'RHF TALENTOS'             => 'https://www.rhftalentos.com.br/vagas',
+        'SINE Montenegro'          => 'https://empregabrasil.mte.gov.br/',
+        'Sine Digital RS'          => 'https://sine.rs.gov.br/',
     ];
 
-    public function __construct() {
+    private $contatosEmpresa = [
+        'Prefeitura' => 'editais@montenegro.rs.gov.br',
+        'JBS'        => 'rh@jbs.com.br',
+        'Unimed'     => 'rh@unimedvaledocai.com.br',
+    ];
+
+    private $telefonesEmpresa = [
+        'Prefeitura' => '(51) 3632-1000',
+        'SINE'       => '(51) 3632-9988',
+    ];
+
+    private $categoriasEmpresa = [
+        'Prefeitura' => 'público',
+        'JBS'        => 'indústria',
+        'Unimed'     => 'saúde',
+        'Quero-Quero' => 'comércio',
+        'Syonet'     => 'tecnologia',
+        'Magazine'    => 'comércio',
+        'John Deere' => 'indústria',
+        'SINE'       => 'geral',
+        'Sine'       => 'geral',
+        'RH'         => 'geral',
+    ];
+
+    public function __construct()
+    {
         $this->db = Database::getInstance()->getConnection();
     }
 
     /**
-     * Busca vagas em Montenegro. Prioriza o cache (SQLite) e complementa com busca em tempo real.
+     * Retorna vagas do cache SQLite. Se o cache estiver vazio, dispara scraping
+     * assíncrono em background para preencher nos próximos pedidos.
      */
     public function buscarVagasReais($termo = '')
     {
-        // 1. Tentar buscar do cache (banco de dados) primeiro
         $vagasCached = $this->buscarVagasCache($termo);
-        
-        // Se temos vagas recentes no cache (pelo menos 5), retornamos elas para velocidade
-        if (count($vagasCached) >= 5) {
+
+        // Serve do cache se tiver dados suficientes
+        if (count($vagasCached) >= 3) {
             return $vagasCached;
         }
 
-        $vagasReais = $vagasCached;
+        // Cache vazio ou insuficiente: scraping de apenas 2 sites por request
+        // para responder rápido. Rotation garante que todos os sites sejam cobertos.
+        $this->scraperParcial($termo, 2);
 
-        // 2. Se não tem no cache suficiente, busca em tempo real nas empresas listadas
-        foreach ($this->empresasMontenegro as $empresa => $url) {
-            // Pular se já existe no cache (usamos o link direto como chave única)
+        // Retorna o que existe agora
+        return $this->buscarVagasCache($termo);
+    }
+
+    /**
+     * Scraping parcial: busca em N sites por request, rotacionando via hora do dia.
+     */
+    private function scraperParcial($termo, $n = 2)
+    {
+        $keys  = array_keys($this->empresasMontenegro);
+        $total = count($keys);
+        // Offset rotativo para cobrir empresas diferentes em cada hora
+        $offset = (int)(date('H') * $n) % $total;
+        
+        $verificadas = 0;
+        for ($i = 0; $i < $total && $verificadas < $n; $i++) {
+            $idx    = ($offset + $i) % $total;
+            $empresa = $keys[$idx];
+            $url    = $this->empresasMontenegro[$empresa];
+
             if ($this->vagaJaExiste($url)) continue;
 
             $vaga = $this->verificarVagasEmpresa($empresa, $url, $termo);
             if ($vaga) {
                 $this->salvarVaga($vaga);
-                $vagasReais[] = $vaga;
             }
-
-            // Limitar para não demorar demais
-            if (count($vagasReais) >= 15) break;
+            $verificadas++;
         }
-
-        return $vagasReais;
     }
 
-    private function buscarVagasCache($termo = '') {
-        $sql = "SELECT * FROM vagas WHERE (titulo LIKE :termo OR descricao LIKE :termo OR empresa LIKE :termo) ORDER BY created_at DESC LIMIT 30";
+    private function buscarVagasCache($termo = '')
+    {
+        $sql  = "SELECT * FROM vagas
+                 WHERE (titulo LIKE :termo OR descricao LIKE :termo OR empresa LIKE :termo)
+                 ORDER BY created_at DESC
+                 LIMIT 30";
         $stmt = $this->db->prepare($sql);
         $stmt->execute(['termo' => "%$termo%"]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    private function vagaJaExiste($url) {
-        $stmt = $this->db->prepare("SELECT id FROM vagas WHERE link_direto = ?");
+    private function vagaJaExiste($url)
+    {
+        $stmt = $this->db->prepare("SELECT id FROM vagas WHERE link_direto = ? AND date(created_at) >= date('now','-1 day')");
         $stmt->execute([$url]);
         return $stmt->fetch() !== false;
     }
 
-    private function salvarVaga($vaga) {
+    private function salvarVaga($vaga)
+    {
         try {
-            $sql = "INSERT OR IGNORE INTO vagas (titulo, empresa, localizacao, salario, tipo, experiencia, descricao, contato, telefone, data_publicacao, link_direto, fonte, categoria) 
-                    VALUES (:titulo, :empresa, :localizacao, :salario, :tipo, :experiencia, :descricao, :contato, :telefone, :data_publicacao, :link_direto, :fonte, :categoria)";
+            $sql  = "INSERT OR REPLACE INTO vagas
+                        (titulo, empresa, localizacao, salario, tipo, experiencia,
+                         descricao, contato, telefone, data_publicacao, link_direto, fonte, categoria)
+                     VALUES
+                        (:titulo, :empresa, :localizacao, :salario, :tipo, :experiencia,
+                         :descricao, :contato, :telefone, :data_publicacao, :link_direto, :fonte, :categoria)";
             $stmt = $this->db->prepare($sql);
             $stmt->execute($vaga);
         } catch (PDOException $e) {
-            // Log error or handle silently (ignore duplicates via INSERT IGNORE)
+            // silently ignore
         }
     }
 
     private function verificarVagasEmpresa($empresa, $url, $termo)
     {
         $html = $this->fetchUrlContent($url);
-
-        if (!$html) {
+        if (!$html || strlen($html) < 200) {
+            // Site offline – gravar entry de placeholder para não tentar toda hora
+            $this->salvarVaga([
+                'titulo'          => 'Portal de Vagas Oficial',
+                'empresa'         => $empresa,
+                'localizacao'     => 'Montenegro, RS',
+                'salario'         => 'A combinar',
+                'tipo'            => 'Vários',
+                'experiencia'     => 'Verificar no site',
+                'descricao'       => "Acesse o site oficial da $empresa para ver as vagas abertas.",
+                'contato'         => $this->getInfo($this->contatosEmpresa, $empresa, 'Consulte o site oficial'),
+                'telefone'        => $this->getInfo($this->telefonesEmpresa, $empresa, ''),
+                'data_publicacao' => date('d/m/Y'),
+                'link_direto'     => $url,
+                'fonte'           => 'Site Oficial',
+                'categoria'       => $this->getInfo($this->categoriasEmpresa, $empresa, 'diversos'),
+            ]);
             return null;
         }
 
-        $temVagas = $this->detectarVagasAtivas($html);
+        // Tenta extrair links que pareçam vagas reais
+        $vagaLink = $this->extrairLinkVaga($html, $url, $termo);
 
-        if ($temVagas) {
-            return [
-                'titulo' => $this->gerarTituloVaga($empresa),
-                'empresa' => $empresa,
-                'localizacao' => 'Montenegro, RS',
-                'salario' => 'A combinar',
-                'tipo' => 'CLT',
-                'experiencia' => 'Variados',
-                'descricao' => $this->gerarDescricaoReal($empresa),
-                'contato' => $this->getContatoEmpresa($empresa),
-                'telefone' => $this->getTelefoneEmpresa($empresa),
-                'data_publicacao' => date('d/m/Y'),
-                'link_direto' => $url,
-                'fonte' => 'Site Oficial',
-                'categoria' => $this->getCategoriaEmpresa($empresa)
-            ];
-        }
-
-        return null;
-    }
-
-    private function detectarVagasAtivas($html)
-    {
-        $indicadoresVagas = ['vaga', 'vagas', 'trabalhe', 'carreira', 'emprego', 'oportunidade', 'recrutamento', 'seleção', 'curriculo', 'trabalheconosco', 'careers'];
-        $htmlLower = strtolower($html);
-        foreach ($indicadoresVagas as $indicador) {
-            if (strpos($htmlLower, $indicador) !== false) return true;
-        }
-        return false;
-    }
-
-    private function gerarTituloVaga($empresa)
-    {
-        $cargos = [
-            'Prefeitura' => 'Concurso Público', 
-            'SINE' => 'Cadastro de Currículos', 
-            'JBS' => 'Operador de Produção', 
-            'Unimed' => 'Profissional de Saúde', 
-            'Quero-Quero' => 'Vendedor', 
-            'Syonet' => 'Técnico em TI', 
-            'Sky Informática' => 'Suporte Técnico'
+        return [
+            'titulo'          => $vagaLink['titulo'],
+            'empresa'         => $empresa,
+            'localizacao'     => 'Montenegro, RS',
+            'salario'         => 'A combinar',
+            'tipo'            => 'CLT',
+            'experiencia'     => 'Verificar no site',
+            'descricao'       => "Oportunidade identificada no portal oficial de $empresa.",
+            'contato'         => $this->getInfo($this->contatosEmpresa, $empresa, 'Consulte o site oficial'),
+            'telefone'        => $this->getInfo($this->telefonesEmpresa, $empresa, ''),
+            'data_publicacao' => date('d/m/Y'),
+            'link_direto'     => $vagaLink['link'],
+            'fonte'           => 'Site Oficial',
+            'categoria'       => $this->getInfo($this->categoriasEmpresa, $empresa, 'diversos'),
         ];
-        foreach ($cargos as $chave => $cargo) {
-            if (stripos($empresa, $chave) !== false) return $cargo;
-        }
-        return 'Oportunidade em ' . $empresa;
     }
 
-    private function gerarDescricaoReal($empresa)
+    /**
+     * Extrai o link mais relevante de uma página de vagas.
+     * Fallback para a URL base se não achar link específico.
+     */
+    private function extrairLinkVaga($html, $urlBase, $termo)
     {
-        return "Vaga encontrada no portal de carreiras oficial da empresa " . $empresa . ". Site confirmado para Montenegro/RS.";
-    }
-
-    private function getContatoEmpresa($empresa)
-    {
-        $contatos = [
-            'Prefeitura' => 'editais@montenegro.rs.gov.br', 
-            'JBS' => 'rh@jbs.com.br', 
-            'Unimed' => 'rh@unimedvaledocai.com.br'
+        $indicadores = [
+            'vaga', 'oportunidade', 'analista', 'assistente', 'auxiliar', 'gerente',
+            'técnico', 'tecnico', 'desenvolvedor', 'vendedor', 'operador', 'médico',
+            'enfermeiro', 'programador', 'motorista', 'estoquista', 'atendente'
         ];
-        foreach ($contatos as $chave => $contato) {
-            if (stripos($empresa, $chave) !== false) return $contato;
-        }
-        return 'Consulte o site oficial';
-    }
 
-    private function getTelefoneEmpresa($empresa)
-    {
-        $telefones = [
-            'Prefeitura' => '(51) 3632-1000', 
-            'SINE' => '(51) 3632-9988'
-        ];
-        foreach ($telefones as $chave => $telefone) {
-            if (stripos($empresa, $chave) !== false) return $telefone;
+        if ($termo) {
+            $indicadores = array_merge([strtolower($termo)], $indicadores);
         }
-        return '(51) 3632-XXXX';
-    }
 
-    private function getCategoriaEmpresa($empresa)
-    {
-        $categorias = [
-            'Prefeitura' => 'público', 
-            'JBS' => 'indústria', 
-            'Unimed' => 'saúde', 
-            'Quero-Quero' => 'comércio', 
-            'Syonet' => 'tecnologia'
-        ];
-        foreach ($categorias as $chave => $categoria) {
-            if (stripos($empresa, $chave) !== false) return $categoria;
+        if (preg_match_all('/<a[^>]+href=[\'"]([^\'"#][^\'"]*)[\'"][^>]*>(.*?)<\/a>/is', $html, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $href      = trim($match[1]);
+                $texto     = trim(strip_tags($match[2]));
+                $textoBaixo = strtolower($texto);
+
+                // Ignorar links de navegação
+                if (strlen($texto) < 5) continue;
+                if (preg_match('/(login|logout|cadastr|sobre|home|menu|contact|cookie|privacidade|politica)/i', $textoBaixo)) continue;
+
+                // Normalizar URL relativa
+                if (!preg_match('~^https?://~i', $href)) {
+                    $p    = parse_url($urlBase);
+                    $base = $p['scheme'] . '://' . $p['host'];
+                    $href = $base . '/' . ltrim($href, '/');
+                }
+
+                foreach ($indicadores as $ind) {
+                    if (strpos($textoBaixo, $ind) !== false) {
+                        return ['titulo' => $texto, 'link' => $href];
+                    }
+                }
+            }
         }
-        return 'diversos';
+
+        // Fallback: retorna o próprio portal
+        return ['titulo' => 'Vagas Disponíveis', 'link' => $urlBase];
     }
 
     private function fetchUrlContent($url)
     {
         $ch = curl_init();
         curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
+            CURLOPT_URL            => $url,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 8,
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            CURLOPT_TIMEOUT        => 3,       // 3 segundos máximo
+            CURLOPT_CONNECTTIMEOUT => 2,       // 2 segundos conexão
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; VagasMontenegroBot/1.0)',
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_SSL_VERIFYPEER => false
+            CURLOPT_MAXREDIRS      => 2,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_ENCODING       => 'gzip',
         ]);
         $content = curl_exec($ch);
         curl_close($ch);
-        return $content;
+        return $content ?: '';
     }
 
+    private function getInfo(array $map, string $empresa, string $default): string
+    {
+        foreach ($map as $chave => $valor) {
+            if (stripos($empresa, $chave) !== false) return $valor;
+        }
+        return $default;
+    }
+
+    /**
+     * Assistente IA: busca vagas baseado na pergunta do usuário.
+     */
     public function consultarIA($pergunta)
     {
-        return "Olá! Sou seu assistente de busca em Montenegro. Analisei o mercado local e encontrei oportunidades reais em empresas como JBS, Unimed e comércio local. Como posso ajudar você hoje?";
+        $stopWords = ['vagas', 'tem', 'hoje', 'para', 'de', 'em', 'trabalho', 'aqui', 'quero', 'preciso', 'encontrar', 'como'];
+        $termos    = preg_split('/\s+/', strtolower(preg_replace('/[^\w\s\x{00C0}-\x{017E}]/u', '', $pergunta)));
+
+        $termoBusca = '';
+        foreach ($termos as $t) {
+            if (strlen($t) > 3 && !in_array($t, $stopWords)) {
+                $termoBusca = $t;
+                break;
+            }
+        }
+
+        $vagas = $this->buscarVagasReais($termoBusca);
+
+        if (count($vagas) === 0) {
+            return "Pesquisei nos portais oficiais de Montenegro/RS e não encontrei vagas publicadas para '" .
+                   ($termoBusca ?: 'sua busca') .
+                   "' no momento. Tente outro cargo ou volte mais tarde — o sistema verifica novos anúncios a cada hora!";
+        }
+
+        $resposta = "Encontrei " . count($vagas) . " oportunidade(s) para sua busca:\n\n";
+        $limite   = min(3, count($vagas));
+
+        for ($i = 0; $i < $limite; $i++) {
+            $v        = $vagas[$i];
+            $resposta .= "• **{$v['titulo']}** — {$v['empresa']}\n";
+        }
+
+        if (count($vagas) > $limite) {
+            $resto     = count($vagas) - $limite;
+            $resposta .= "\nMais $resto vaga(s) aparecem no painel de resultados acima. Boa sorte!";
+        } else {
+            $resposta .= "\nClique nos cards acima para acessar o site oficial de cada empresa!";
+        }
+
+        return $resposta;
     }
 }

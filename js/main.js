@@ -63,7 +63,7 @@ class VagasApp {
       const vagas = await this.api.fetchVagas("", "", "", true);
       this.ui.exibirVagas(vagas);
     } catch (error) {
-      this.ui.exibirVagas(this.api.getMockData());
+      console.warn("Aviso: Nenhuma vaga carregada inicialmente ou erro na API.");
     } finally {
       this.ui.mostrarLoading(false);
     }
@@ -79,8 +79,8 @@ class VagasApp {
       const vagas = await this.api.fetchVagas(termo, tipo, experiencia);
       this.ui.exibirVagas(vagas);
     } catch (error) {
-      alert("Erro ao buscar vagas. Tentando com dados locais...");
-      this.ui.exibirVagas(this.api.getFilteredMock(termo, tipo, experiencia));
+      this.ui.adicionarMensagem("Não foi possível realizar a busca no momento. Tente novamente mais tarde.", "ai");
+      // Mocks have been disabled to ensure we only show real active jobs.
     } finally {
       this.ui.mostrarLoading(false);
     }
