@@ -41,5 +41,4 @@ export class ApiService {
       throw error;
     }
   }
-
 }
