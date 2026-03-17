@@ -18,12 +18,7 @@ $model = new VagaModel();
 
 switch ($action) {
   case 'buscarVagas':
-    $termo = $input['termo'] ?? '';
-    $arg2 = $input['arg2'] ?? null; // Replace with appropriate default or input
-    $arg3 = $input['arg3'] ?? null; // Replace with appropriate default or input
-    $arg4 = $input['arg4'] ?? null; // Replace with appropriate default or input
-    $arg5 = $input['arg5'] ?? null; // Replace with appropriate default or input
-    $vagas = $model->buscarVagasReais($termo, $arg2, $arg3, $arg4, $arg5);
+    $vagas = $model->buscarVagasReais($termo);
     echo json_encode($vagas);
     break;
 
