@@ -9,7 +9,13 @@ export default {
   ],
   coverageDirectory: 'reports/coverage',
   coverageReporters: ['html', 'text', 'lcov'],
-  moduleNameMapping: {
+  moduleNameMapper: {
     '\\.(css|scss)$': 'identity-obj-proxy'
+  },
+  extensionsToTreatAsEsm: ['.js'],
+  globals: {
+    'ts-jest': {
+      useESM: true
+    }
   }
 };

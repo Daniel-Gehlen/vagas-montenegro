@@ -49,7 +49,7 @@ export class UiService {
   renderLink(url) {
     if (!url || url === "#" || url.startsWith("mailto:")) return "";
     // Note: window.abrirVaga is bound in main.js
-    return `<div class="vaga-link" data-url="${this.sanitizeHTML(url)}">🔗 Clique para ver vaga</div>`;
+    return `<button class="vaga-link" data-url="${this.sanitizeHTML(url)}" type="button">🔗 Clique para ver vaga</button>`;
   }
 
   adicionarMensagem(mensagem, tipo) {
