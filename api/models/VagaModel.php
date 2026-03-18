@@ -167,27 +167,16 @@ class VagaModel
     {
         $html = $this->fetchUrlContent($url);
         if (!$html || strlen($html) < 200) {
-            // Site offline – gravar entry de placeholder para não tentar toda hora
-            $this->salvarVaga([
-                'titulo'          => 'Portal de Vagas Oficial',
-                'empresa'         => $empresa,
-                'localizacao'     => 'Montenegro, RS',
-                'salario'         => 'A combinar',
-                'tipo'            => 'Vários',
-                'experiencia'     => 'Verificar no site',
-                'descricao'       => "Acesse o site oficial da $empresa para ver as vagas abertas.",
-                'contato'         => $this->getInfo($this->contatosEmpresa, $empresa, 'Consulte o site oficial'),
-                'telefone'        => $this->getInfo($this->telefonesEmpresa, $empresa, ''),
-                'data_publicacao' => date('d/m/Y'),
-                'link_direto'     => $url,
-                'fonte'           => 'Site Oficial',
-                'categoria'       => $this->getInfo($this->categoriasEmpresa, $empresa, 'diversos'),
-            ]);
+            // Site offline – não criar placeholder para evitar links quebrados
             return null;
         }
 
         // Tenta extrair links que pareçam vagas reais
         $vagaLink = $this->extrairLinkVaga($html, $url, $termo);
+        if ($vagaLink['link'] === $url) {
+            // Se não encontrou vaga específica, não criar entrada
+            return null;
+        }
 
         return [
             'titulo'          => $vagaLink['titulo'],
