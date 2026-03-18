@@ -59,16 +59,9 @@ class VagasApp {
         if (e.key === "Enter") this.buscarVagas();
       });
 
-    document.getElementById("aiQuestion")?.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") this.perguntarIA();
-    });
-
     document
       .getElementById("btnBuscar")
       ?.addEventListener("click", () => this.buscarVagas());
-    document
-      .getElementById("btnEnviarIA")
-      ?.addEventListener("click", () => this.perguntarIA());
 
     // Event delegation for dynamically created links
     document
@@ -103,10 +96,7 @@ class VagasApp {
 
     // Validação de entrada
     if (termo.length < 2 && termo !== '') {
-      this.ui.adicionarMensagem(
-        "Digite pelo menos 2 caracteres para buscar.",
-        "ai"
-      );
+      alert("Digite pelo menos 2 caracteres para buscar.");
       return;
     }
 
@@ -115,32 +105,10 @@ class VagasApp {
       const vagas = await this.api.fetchVagas(termo, tipo, experiencia);
       this.ui.exibirVagas(vagas);
     } catch (error) {
-      this.ui.adicionarMensagem(
-        "Não foi possível realizar a busca no momento. Tente novamente mais tarde.",
-        "ai"
-      );
+      alert("Não foi possível realizar a busca no momento. Tente novamente mais tarde.");
       console.error("Erro na busca:", error);
     } finally {
       this.ui.mostrarLoading(false);
-    }
-  }
-
-  async perguntarIA() {
-    const input = document.getElementById("aiQuestion");
-    const pergunta = input.value.trim();
-    if (!pergunta) return;
-
-    this.ui.adicionarMensagem(pergunta, "user");
-    input.value = "";
-
-    try {
-      const data = await this.api.askAI(pergunta);
-      this.ui.adicionarMensagem(data.resposta, "ai");
-    } catch (error) {
-      this.ui.adicionarMensagem(
-        "Desculpe, estou com problemas técnicos no momento. Tente novamente mais tarde.",
-        "ai"
-      );
     }
   }
 

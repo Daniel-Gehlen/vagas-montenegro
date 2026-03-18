@@ -2,7 +2,6 @@ export class UiService {
   constructor() {
     this.container = document.getElementById("vagasContainer");
     this.loading = document.getElementById("loading");
-    this.aiMessages = document.getElementById("aiMessages");
   }
 
   mostrarLoading(mostrar) {
@@ -52,13 +51,7 @@ export class UiService {
     return `<button class="vaga-link" data-url="${this.sanitizeHTML(url)}" type="button">🔗 Clique para ver vaga</button>`;
   }
 
-  adicionarMensagem(mensagem, tipo) {
-    const messageDiv = document.createElement("div");
-    messageDiv.className = `message ${tipo === "user" ? "user-message" : "ai-response"}`;
-    messageDiv.textContent = mensagem; // textContent automatically sanitizes
-    this.aiMessages.appendChild(messageDiv);
-    this.aiMessages.scrollTop = this.aiMessages.scrollHeight;
-  }
+
 
   sanitizeHTML(str) {
     if (typeof str !== "string") return str;
