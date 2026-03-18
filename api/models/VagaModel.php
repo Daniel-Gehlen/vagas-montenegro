@@ -1,9 +1,12 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/Logger.php';
 
 class VagaModel
 {
     private $db;
+    private $cacheDir;
+    private $logger;
 
     // URL do portal central de vagas de Montenegro/RS para scraping
     private $empresasMontenegro = [
@@ -48,6 +51,11 @@ class VagaModel
     public function __construct()
     {
         $this->db = Database::getInstance()->getConnection();
+        $this->logger = Logger::getInstance();
+        $this->cacheDir = __DIR__ . '/../../cache/';
+        if (!is_dir($this->cacheDir)) {
+            mkdir($this->cacheDir, 0755, true);
+        }
     }
 
     /**
@@ -80,7 +88,7 @@ class VagaModel
         $total = count($keys);
         // Offset rotativo para cobrir empresas diferentes em cada hora
         $offset = (int)(date('H') * $n) % $total;
-        
+
         $verificadas = 0;
         for ($i = 0; $i < $total && $verificadas < $n; $i++) {
             $idx    = ($offset + $i) % $total;
@@ -99,13 +107,37 @@ class VagaModel
 
     private function buscarVagasCache($termo = '')
     {
+        $cacheKey = 'vagas_' . md5($termo);
+        $cached = $this->getCache($cacheKey);
+        if ($cached !== null) {
+            return $cached;
+        }
+
         $sql  = "SELECT * FROM vagas
                  WHERE (titulo LIKE :termo OR descricao LIKE :termo OR empresa LIKE :termo)
                  ORDER BY created_at DESC
                  LIMIT 30";
         $stmt = $this->db->prepare($sql);
         $stmt->execute(['termo' => "%$termo%"]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $this->setCache($cacheKey, $result, 300); // 5 minutes
+        return $result;
+    }
+
+    private function getCache($key)
+    {
+        $file = $this->cacheDir . $key . '.cache';
+        if (file_exists($file) && (time() - filemtime($file)) < 300) {
+            return unserialize(file_get_contents($file));
+        }
+        return null;
+    }
+
+    private function setCache($key, $data, $ttl = 300)
+    {
+        $file = $this->cacheDir . $key . '.cache';
+        file_put_contents($file, serialize($data));
     }
 
     private function vagaJaExiste($url)

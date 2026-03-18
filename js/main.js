@@ -73,9 +73,18 @@ class VagasApp {
   }
 
   async buscarVagas() {
-    const termo = document.getElementById("searchInput").value;
+    const termo = document.getElementById("searchInput").value.trim();
     const tipo = document.getElementById("tipoVaga").value;
     const experiencia = document.getElementById("experiencia").value;
+
+    // Validação de entrada
+    if (termo.length < 2 && termo !== '') {
+      this.ui.adicionarMensagem(
+        "Digite pelo menos 2 caracteres para buscar.",
+        "ai"
+      );
+      return;
+    }
 
     this.ui.mostrarLoading(true);
     try {
@@ -86,7 +95,7 @@ class VagasApp {
         "Não foi possível realizar a busca no momento. Tente novamente mais tarde.",
         "ai"
       );
-      // Mocks have been disabled to ensure we only show real active jobs.
+      console.error("Erro na busca:", error);
     } finally {
       this.ui.mostrarLoading(false);
     }

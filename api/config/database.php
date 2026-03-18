@@ -48,5 +48,17 @@ class Database {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )";
         $this->connection->exec($sql);
+
+        // Create indexes for performance
+        $indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_titulo ON vagas(titulo)",
+            "CREATE INDEX IF NOT EXISTS idx_empresa ON vagas(empresa)",
+            "CREATE INDEX IF NOT EXISTS idx_created_at ON vagas(created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_categoria ON vagas(categoria)",
+            "CREATE INDEX IF NOT EXISTS idx_link_direto ON vagas(link_direto)"
+        ];
+        foreach ($indexes as $indexSql) {
+            $this->connection->exec($indexSql);
+        }
     }
 }
