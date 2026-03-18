@@ -8,20 +8,16 @@ class VagaModel
     private $cacheDir;
     private $logger;
 
-    // URL do portal central de vagas de Montenegro/RS para scraping
-    private $empresasMontenegro = [
-        'Prefeitura de Montenegro' => 'https://www.montenegro.rs.gov.br/editais/',
-        'JBS Montenegro'           => 'https://www.jbs.com.br/carreiras',
-        'Unimed Vale do Caí'       => 'https://unimedvaledocai.com.br/trabalhe-conosco/',
-        'Lojas Quero-Quero'        => 'https://www.quero-quero.com.br/trabalhe-conosco',
-        'Syonet'                   => 'https://syonet.com.br/trabalhe-conosco',
-        'Magazine Luiza'           => 'https://carreiras.magazineluiza.com.br/',
-        'John Deere'               => 'https://www.deere.com.br/pt/carreiras/',
-        'RH Mattos'                => 'https://www.rhmatos.com.br/vagas',
-        'RH CENTER'                => 'https://rhcenterrs.com.br/vagas',
-        'RHF TALENTOS'             => 'https://www.rhftalentos.com.br/vagas',
-        'SINE Montenegro'          => 'https://empregabrasil.mte.gov.br/',
-        'Sine Digital RS'          => 'https://sine.rs.gov.br/',
+    // Portais de vagas gerais para buscar empregos em Montenegro/RS
+    private $portaisVagas = [
+        'Indeed Brasil'     => 'https://br.indeed.com/jobs?q=&l=Montenegro%2C+RS',
+        'Catho'            => 'https://www.catho.com.br/vagas/montenegro-rs/',
+        'InfoJobs'         => 'https://www.infojobs.com.br/vagas-de-emprego-montenegro.aspx',
+        'Vagas.com'        => 'https://www.vagas.com.br/vagas-em-montenegro-rs',
+        'Trampos'          => 'https://trampos.co/oportunidades/montenegro-rs',
+        '99jobs'           => 'https://www.99jobs.com/montenegro-rs',
+        'Jooble'           => 'https://br.jooble.org/trabalho-montenegro-RS',
+        'SINE Nacional'    => 'https://empregabrasil.mte.gov.br/',
     ];
 
     private $contatosEmpresa = [
@@ -80,25 +76,25 @@ class VagaModel
     }
 
     /**
-     * Scraping parcial: busca em N sites por request, rotacionando via hora do dia.
+     * Scraping parcial: busca em N portais por request, rotacionando via hora do dia.
      */
     private function scraperParcial($termo, $n = 2)
     {
-        $keys  = array_keys($this->empresasMontenegro);
+        $keys  = array_keys($this->portaisVagas);
         $total = count($keys);
-        // Offset rotativo para cobrir empresas diferentes em cada hora
+        // Offset rotativo para cobrir portais diferentes em cada hora
         $offset = (int)(date('H') * $n) % $total;
 
         $verificadas = 0;
         for ($i = 0; $i < $total && $verificadas < $n; $i++) {
             $idx    = ($offset + $i) % $total;
-            $empresa = $keys[$idx];
-            $url    = $this->empresasMontenegro[$empresa];
+            $portal = $keys[$idx];
+            $url    = $this->portaisVagas[$portal];
 
             if ($this->vagaJaExiste($url)) continue;
 
-            $vaga = $this->verificarVagasEmpresa($empresa, $url, $termo);
-            if ($vaga) {
+            $vagas = $this->verificarVagasPortal($portal, $url, $termo);
+            foreach ($vagas as $vaga) {
                 $this->salvarVaga($vaga);
             }
             $verificadas++;
@@ -163,6 +159,37 @@ class VagaModel
         }
     }
 
+    private function verificarVagasPortal($portal, $url, $termo)
+    {
+        $html = $this->fetchUrlContent($url);
+        if (!$html || strlen($html) < 200) {
+            return []; // Retorna array vazio se portal offline
+        }
+
+        $vagas = [];
+        $links = $this->extrairLinksVagas($html, $url, $termo);
+
+        foreach ($links as $link) {
+            $vagas[] = [
+                'titulo'          => $link['titulo'],
+                'empresa'         => $this->extrairEmpresa($link['titulo'], $portal),
+                'localizacao'     => 'Montenegro, RS',
+                'salario'         => 'A combinar',
+                'tipo'            => 'CLT',
+                'experiencia'     => 'Verificar no site',
+                'descricao'       => "Vaga encontrada no portal $portal.",
+                'contato'         => 'contato@' . strtolower(str_replace(' ', '', $portal)) . '.com',
+                'telefone'        => '(51) 3632-0000',
+                'data_publicacao' => date('d/m/Y'),
+                'link_direto'     => $link['link'],
+                'fonte'           => $portal,
+                'categoria'       => 'diversos',
+            ];
+        }
+
+        return $vagas;
+    }
+
     private function verificarVagasEmpresa($empresa, $url, $termo)
     {
         $html = $this->fetchUrlContent($url);
@@ -193,6 +220,51 @@ class VagaModel
             'fonte'           => 'Site Oficial',
             'categoria'       => $this->getInfo($this->categoriasEmpresa, $empresa, 'diversos'),
         ];
+    }
+
+    /**
+     * Extrai múltiplos links de vagas de um portal de empregos.
+     */
+    private function extrairLinksVagas($html, $urlBase, $termo)
+    {
+        $links = [];
+        $indicadores = [
+            'vaga', 'oportunidade', 'analista', 'assistente', 'auxiliar', 'gerente',
+            'técnico', 'tecnico', 'desenvolvedor', 'vendedor', 'operador', 'médico',
+            'enfermeiro', 'programador', 'motorista', 'estoquista', 'atendente'
+        ];
+
+        if ($termo) {
+            $indicadores = array_merge([strtolower($termo)], $indicadores);
+        }
+
+        if (preg_match_all('/<a[^>]+href=[\'"]([^\'"#][^\'"]*)[\'"][^>]*>(.*?)<\/a>/is', $html, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $href      = trim($match[1]);
+                $texto     = trim(strip_tags($match[2]));
+                $textoBaixo = strtolower($texto);
+
+                // Ignorar links de navegação
+                if (strlen($texto) < 5) continue;
+                if (preg_match('/(login|logout|cadastr|sobre|home|menu|contact|cookie|privacidade|politica)/i', $textoBaixo)) continue;
+
+                // Normalizar URL relativa
+                if (!preg_match('~^https?://~i', $href)) {
+                    $p    = parse_url($urlBase);
+                    $base = $p['scheme'] . '://' . $p['host'];
+                    $href = $base . '/' . ltrim($href, '/');
+                }
+
+                foreach ($indicadores as $ind) {
+                    if (strpos($textoBaixo, $ind) !== false) {
+                        $links[] = ['titulo' => $texto, 'link' => $href];
+                        if (count($links) >= 5) break 2; // Máximo 5 vagas por portal
+                    }
+                }
+            }
+        }
+
+        return $links;
     }
 
     /**
@@ -238,6 +310,27 @@ class VagaModel
 
         // Fallback: retorna o próprio portal
         return ['titulo' => 'Vagas Disponíveis', 'link' => $urlBase];
+    }
+
+    /**
+     * Tenta extrair nome da empresa do título da vaga.
+     */
+    private function extrairEmpresa($titulo, $portal)
+    {
+        // Lista de empresas conhecidas em Montenegro
+        $empresas = [
+            'Prefeitura', 'JBS', 'Unimed', 'Syonet', 'Magazine Luiza', 'John Deere',
+            'Banco do Brasil', 'Caixa', 'Correios', 'Hospital', 'Escola', 'Universidade'
+        ];
+
+        foreach ($empresas as $empresa) {
+            if (stripos($titulo, $empresa) !== false) {
+                return $empresa;
+            }
+        }
+
+        // Se não encontrou, usa o portal como fonte
+        return $portal;
     }
 
     private function fetchUrlContent($url)
