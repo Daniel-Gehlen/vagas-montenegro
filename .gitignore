@@ -35,6 +35,15 @@ composer.lock
 error_log
 php_errors.log
 
+# Generated files
+cache/
+data/
+logs/
+reports/
+*.cache
+*.sq3
+*.log
+
 # Agentic / Brain
 .gemini/
 brain/
