@@ -7,7 +7,7 @@ class VagaModel {
     private $cache_ttl = 300; // 5 minutos
 
     public function __construct() {
-        $this->db = Database::getInstance();
+        $this->db = Database::getInstance()->getConnection();
     }
 
     public function listar($pagina = 1, $limite = 10, $termo = '') {
@@ -19,11 +19,9 @@ class VagaModel {
         }
 
         $offset = ($pagina - 1) * $limite;
-        $sql = "SELECT v.*, c.nome as categoria_nome
-                FROM vagas v
-                LEFT JOIN categorias c ON v.categoria_id = c.id
-                WHERE v.titulo LIKE :termo
-                ORDER BY v.data_criacao DESC
+        $sql = "SELECT * FROM vagas
+                WHERE titulo LIKE :termo OR empresa LIKE :termo OR descricao LIKE :termo
+                ORDER BY created_at DESC
                 LIMIT :limite OFFSET :offset";
 
         $stmt = $this->db->prepare($sql);
@@ -44,7 +42,7 @@ class VagaModel {
     }
 
     public function contarTotal($termo = '') {
-        $sql = "SELECT COUNT(*) as total FROM vagas WHERE titulo LIKE :termo";
+        $sql = "SELECT COUNT(*) as total FROM vagas WHERE titulo LIKE :termo OR empresa LIKE :termo OR descricao LIKE :termo";
         $stmt = $this->db->prepare($sql);
         $stmt->bindValue(':termo', "%{$termo}%");
         $stmt->execute();
@@ -52,10 +50,7 @@ class VagaModel {
     }
 
     public function buscar($id) {
-        $sql = "SELECT v.*, c.nome as categoria_nome
-                FROM vagas v
-                LEFT JOIN categorias c ON v.categoria_id = c.id
-                WHERE v.id = :id";
+        $sql = "SELECT * FROM vagas WHERE id = :id";
 
         $stmt = $this->db->prepare($sql);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
@@ -67,8 +62,8 @@ class VagaModel {
     public function criar($dados) {
         $this->limparCache();
 
-        $sql = "INSERT INTO vagas (titulo, empresa, descricao, localizacao, salario, categoria_id, data_criacao)
-                VALUES (:titulo, :empresa, :descricao, :localizacao, :salario, :categoria_id, NOW())";
+        $sql = "INSERT INTO vagas (titulo, empresa, descricao, localizacao, salario, tipo, experiencia, contato, telefone, data_publicacao, link_direto, fonte, categoria)
+                VALUES (:titulo, :empresa, :descricao, :localizacao, :salario, :tipo, :experiencia, :contato, :telefone, :data_publicacao, :link_direto, :fonte, :categoria)";
 
         $stmt = $this->db->prepare($sql);
         $stmt->bindValue(':titulo', $dados['titulo']);
@@ -76,7 +71,14 @@ class VagaModel {
         $stmt->bindValue(':descricao', $dados['descricao']);
         $stmt->bindValue(':localizacao', $dados['localizacao']);
         $stmt->bindValue(':salario', $dados['salario']);
-        $stmt->bindValue(':categoria_id', $dados['categoria_id']);
+        $stmt->bindValue(':tipo', $dados['tipo']);
+        $stmt->bindValue(':experiencia', $dados['experiencia']);
+        $stmt->bindValue(':contato', $dados['contato']);
+        $stmt->bindValue(':telefone', $dados['telefone']);
+        $stmt->bindValue(':data_publicacao', $dados['data_publicacao']);
+        $stmt->bindValue(':link_direto', $dados['link_direto']);
+        $stmt->bindValue(':fonte', $dados['fonte']);
+        $stmt->bindValue(':categoria', $dados['categoria']);
 
         return $stmt->execute();
     }
@@ -85,7 +87,9 @@ class VagaModel {
         $this->limparCache();
 
         $sql = "UPDATE vagas SET titulo = :titulo, empresa = :empresa, descricao = :descricao,
-                localizacao = :localizacao, salario = :salario, categoria_id = :categoria_id
+                localizacao = :localizacao, salario = :salario, tipo = :tipo, experiencia = :experiencia,
+                contato = :contato, telefone = :telefone, data_publicacao = :data_publicacao,
+                link_direto = :link_direto, fonte = :fonte, categoria = :categoria
                 WHERE id = :id";
 
         $stmt = $this->db->prepare($sql);
@@ -95,7 +99,14 @@ class VagaModel {
         $stmt->bindValue(':descricao', $dados['descricao']);
         $stmt->bindValue(':localizacao', $dados['localizacao']);
         $stmt->bindValue(':salario', $dados['salario']);
-        $stmt->bindValue(':categoria_id', $dados['categoria_id']);
+        $stmt->bindValue(':tipo', $dados['tipo']);
+        $stmt->bindValue(':experiencia', $dados['experiencia']);
+        $stmt->bindValue(':contato', $dados['contato']);
+        $stmt->bindValue(':telefone', $dados['telefone']);
+        $stmt->bindValue(':data_publicacao', $dados['data_publicacao']);
+        $stmt->bindValue(':link_direto', $dados['link_direto']);
+        $stmt->bindValue(':fonte', $dados['fonte']);
+        $stmt->bindValue(':categoria', $dados['categoria']);
 
         return $stmt->execute();
     }
@@ -110,24 +121,19 @@ class VagaModel {
         return $stmt->execute();
     }
 
-    public function buscarPorCategoria($categoria_id) {
-        $sql = "SELECT v.*, c.nome as categoria_nome
-                FROM vagas v
-                LEFT JOIN categorias c ON v.categoria_id = c.id
-                WHERE v.categoria_id = :categoria_id";
+    public function buscarPorCategoria($categoria) {
+        $sql = "SELECT * FROM vagas WHERE categoria = :categoria";
 
         $stmt = $this->db->prepare($sql);
-        $stmt->bindValue(':categoria_id', $categoria_id, PDO::PARAM_INT);
+        $stmt->bindValue(':categoria', $categoria);
         $stmt->execute();
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function buscarRecentes($limite = 5) {
-        $sql = "SELECT v.*, c.nome as categoria_nome
-                FROM vagas v
-                LEFT JOIN categorias c ON v.categoria_id = c.id
-                ORDER BY v.data_criacao DESC
+        $sql = "SELECT * FROM vagas
+                ORDER BY created_at DESC
                 LIMIT :limite";
 
         $stmt = $this->db->prepare($sql);

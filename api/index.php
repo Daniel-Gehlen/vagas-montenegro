@@ -20,13 +20,29 @@ try {
     // Registrar requisição
     $logger->info("Requisição: {$_SERVER['REQUEST_METHOD']} {$_SERVER['REQUEST_URI']}");
 
-    // Roteamento básico
-    $path = $_SERVER['PATH_INFO'] ?? '';
+    // Roteamento por action query parameter (compatibilidade com frontend)
+    $action = $_GET['action'] ?? '';
     $method = $_SERVER['REQUEST_METHOD'];
 
     // Importar controlador
     require_once 'controllers/VagasController.php';
     $controller = new VagasController();
+
+    // Roteamento por action
+    if ($action === 'buscarVagas' && $method === 'POST') {
+        $controller->listar();
+        exit;
+    }
+
+    if ($action === 'perguntarIA' && $method === 'POST') {
+        require_once 'controllers/WebhooksController.php';
+        $webhooksController = new WebhooksController();
+        $webhooksController->perguntarIA();
+        exit;
+    }
+
+    // Roteamento por PATH_INFO (REST)
+    $path = $_SERVER['PATH_INFO'] ?? '';
 
     switch ($path) {
         case '/vagas':
@@ -80,7 +96,10 @@ try {
             break;
 
         default:
-            throw new Exception('Rota não encontrada');
+            if (empty($action) && empty($path)) {
+                throw new Exception('Rota não encontrada');
+            }
+            break;
     }
 
 } catch (Exception $e) {

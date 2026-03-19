@@ -107,5 +107,58 @@ class WebhooksController {
         // Lógica para salvar webhook no banco de dados
         $this->logger->debug("Salvando webhook: " . json_encode($dados));
     }
+
+    public function perguntarIA() {
+        try {
+            $dados = json_decode(file_get_contents('php://input'), true);
+            $pergunta = $dados['pergunta'] ?? '';
+
+            if (empty($pergunta)) {
+                throw new Exception('Pergunta não fornecida');
+            }
+
+            $this->logger->info("Pergunta recebida: " . $pergunta);
+
+            // Resposta simulada da IA (substituir por integração real)
+            $resposta = $this->gerarRespostaIA($pergunta);
+
+            http_response_code(200);
+            echo json_encode([
+                'sucesso' => true,
+                'resposta' => $resposta
+            ]);
+        } catch (Exception $e) {
+            $this->logger->error("Erro na pergunta IA: " . $e->getMessage());
+
+            http_response_code(500);
+            echo json_encode([
+                'sucesso' => false,
+                'erro' => $e->getMessage()
+            ]);
+        }
+    }
+
+    private function gerarRespostaIA($pergunta) {
+        // Respostas simuladas baseadas em palavras-chave
+        $pergunta_lower = strtolower($pergunta);
+
+        if (strpos($pergunta_lower, 'vaga') !== false || strpos($pergunta_lower, 'emprego') !== false) {
+            return "Temos diversas vagas disponíveis em Montenegro/RS. Você pode usar a busca para filtrar por categoria, tipo de contrato ou nível de experiência. Posso ajudar com alguma categoria específica?";
+        }
+
+        if (strpos($pergunta_lower, 'salário') !== false || strpos($pergunta_lower, 'salario') !== false) {
+            return "Os salários variam conforme a posição e experiência. Na média, temos vagas que vão de R$ 2.000 a R$ 8.000. Posso filtrar vagas por faixa salarial se desejar.";
+        }
+
+        if (strpos($pergunta_lower, 'tecnologia') !== false || strpos($pergunta_lower, 'ti') !== false) {
+            return "Temos ótimas oportunidades em tecnologia! Desenvolvedores, analistas de sistemas e suporte técnico são as mais procuradas. Quer que eu liste as vagas de tecnologia disponíveis?";
+        }
+
+        if (strpos($pergunta_lower, 'ajuda') !== false) {
+            return "Posso ajudar você a encontrar vagas de emprego em Montenegro/RS. Você pode me perguntar sobre: vagas disponíveis, salários, tipos de contrato, categorias específicas ou requisitos. Como posso ajudar?";
+        }
+
+        return "Entendi sua pergunta sobre '{$pergunta}'. Posso ajudar você a encontrar vagas de emprego em Montenegro/RS. Tente usar termos como 'vaga', 'emprego', 'salário' ou nome de uma categoria para uma busca mais específica.";
+    }
 }
 ?>

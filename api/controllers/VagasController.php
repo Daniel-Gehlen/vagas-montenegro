@@ -198,10 +198,12 @@ class VagasController {
     private function responderSucesso($data) {
         header('Content-Type: application/json');
         http_response_code(200);
-        echo json_encode([
+        $response = json_encode([
             'sucesso' => true,
             'dados' => $data
         ]);
+        echo $response;
+        flush();
         exit;
     }
 
