@@ -43,6 +43,11 @@ reports/
 *.cache
 *.sq3
 *.log
+.cache/
+.vscode/
+.idea/
+*.tmp
+*.swp
 
 # Agentic / Brain
 .gemini/
