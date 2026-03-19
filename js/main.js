@@ -81,7 +81,8 @@ class VagasApp {
   async carregarVagasIniciais() {
     this.ui.mostrarLoading(true);
     try {
-      const vagas = await this.api.fetchVagas("", "", "", true);
+      const response = await this.api.fetchVagas("", "", "", true);
+      const vagas = response?.dados?.vagas || response?.vagas || [];
       this.ui.exibirVagas(vagas);
     } catch (error) {
       console.warn(
@@ -105,7 +106,8 @@ class VagasApp {
 
     this.ui.mostrarLoading(true);
     try {
-      const vagas = await this.api.fetchVagas(termo, tipo, experiencia);
+      const response = await this.api.fetchVagas(termo, tipo, experiencia);
+      const vagas = response?.dados?.vagas || response?.vagas || [];
       this.ui.exibirVagas(vagas);
     } catch (error) {
       alert("Não foi possível realizar a busca no momento. Tente novamente mais tarde.");
