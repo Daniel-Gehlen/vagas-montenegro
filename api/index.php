@@ -24,13 +24,16 @@ try {
     $action = $_GET['action'] ?? '';
     $method = $_SERVER['REQUEST_METHOD'];
 
-    // Importar controlador
+    // Importar controladores
     require_once 'controllers/VagasController.php';
-    $controller = new VagasController();
+    require_once 'controllers/BuscaVagasController.php';
+
+    $vagasController = new VagasController();
+    $buscaVagasController = new BuscaVagasController();
 
     // Roteamento por action
     if ($action === 'buscarVagas' && $method === 'POST') {
-        $controller->listar();
+        $buscaVagasController->buscarVagasGoogle();
         exit;
     }
 
