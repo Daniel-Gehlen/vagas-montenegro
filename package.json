@@ -4,13 +4,14 @@
   "description": "Sistema de busca de vagas em Montenegro/RS",
   "type": "module",
   "scripts": {
-    "serve": "php -S localhost:8080 -t .",
+    "serve": "node server.js",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .js",
     "format": "prettier --write .",
-    "api": "php -S localhost:8080 -t .",
+    "api": "node server.js",
+    "start": "node server.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "playwright test",
@@ -19,6 +20,10 @@
     "test:links": "linkinator http://localhost:8080 --recurse --silent --format json > reports/link-check.json",
     "test:spelling": "cspell '**/*.{js,html,css,md}' --config cspell.config.js",
     "ci": "npm run lint && npm run format && npm run test:spelling && npm run test"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.9.1",

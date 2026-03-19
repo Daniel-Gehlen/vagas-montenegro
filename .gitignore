@@ -57,7 +57,7 @@ brain/
 !implementation_plan.md
 !walkthrough.md
 !README.md
-!SKILL.md
+!SKILLS.md
 !api/**/*.php
 !js/**/*.js
 !css/**/*.css
