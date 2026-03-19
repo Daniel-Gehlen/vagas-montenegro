@@ -3,8 +3,11 @@ import { UiService } from "./ui.js";
 
 class VagasApp {
   constructor() {
-    // Always point to the PHP server regardless of which static server serves the HTML
-    const apiBase = "http://localhost:8080/api";
+    // Detect environment and set API base URL accordingly
+    const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    const apiBase = isProduction
+      ? `${window.location.origin}/api`  // Use same domain in production
+      : "http://localhost:8080/api";     // Use localhost in development
     this.api = new ApiService(apiBase);
     this.ui = new UiService();
     this.init();
