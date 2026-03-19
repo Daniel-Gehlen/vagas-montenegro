@@ -1,40 +1,60 @@
 <?php
-
 class Logger {
-    private static $instance = null;
-    private $logFile;
+    private $log_file;
+    private $log_level;
 
-    private function __construct() {
-        $logDir = __DIR__ . '/../../logs/';
-        if (!is_dir($logDir)) {
-            mkdir($logDir, 0755, true);
+    public function __construct($log_file = null, $log_level = 'INFO') {
+        $this->log_file = $log_file ?: __DIR__ . '/../../logs/app.log';
+        $this->log_level = $log_level;
+
+        // Criar diretório de logs se não existir
+        $log_dir = dirname($this->log_file);
+        if (!file_exists($log_dir)) {
+            mkdir($log_dir, 0755, true);
         }
-        $this->logFile = $logDir . 'app.log';
     }
 
-    public static function getInstance() {
-        if (self::$instance === null) {
-            self::$instance = new self();
+    public function info($message) {
+        $this->log('INFO', $message);
+    }
+
+    public function warning($message) {
+        $this->log('WARNING', $message);
+    }
+
+    public function error($message) {
+        $this->log('ERROR', $message);
+    }
+
+    public function debug($message) {
+        $this->log('DEBUG', $message);
+    }
+
+    private function log($level, $message) {
+        if ($this->shouldLog($level)) {
+            $timestamp = date('Y-m-d H:i:s');
+            $ip = $this->getClientIP();
+            $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+
+            $log_entry = "[{$timestamp}] {$level}: {$message} | IP: {$ip} | UA: {$user_agent}" . PHP_EOL;
+
+            file_put_contents($this->log_file, $log_entry, FILE_APPEND | LOCK_EX);
         }
-        return self::$instance;
     }
 
-    public function log($level, $message, $context = []) {
-        $timestamp = date('Y-m-d H:i:s');
-        $contextStr = empty($context) ? '' : ' ' . json_encode($context);
-        $logEntry = "[$timestamp] $level: $message$contextStr" . PHP_EOL;
-        file_put_contents($this->logFile, $logEntry, FILE_APPEND | LOCK_EX);
+    private function shouldLog($level) {
+        $levels = ['DEBUG' => 0, 'INFO' => 1, 'WARNING' => 2, 'ERROR' => 3];
+        return $levels[$level] >= $levels[$this->log_level];
     }
 
-    public function info($message, $context = []) {
-        $this->log('INFO', $message, $context);
-    }
-
-    public function error($message, $context = []) {
-        $this->log('ERROR', $message, $context);
-    }
-
-    public function warning($message, $context = []) {
-        $this->log('WARNING', $message, $context);
+    private function getClientIP() {
+        if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
+            return $_SERVER['HTTP_CLIENT_IP'];
+        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            return $_SERVER['HTTP_X_FORWARDED_FOR'];
+        } else {
+            return $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
+        }
     }
 }
+?>

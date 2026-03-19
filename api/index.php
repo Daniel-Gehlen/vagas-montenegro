@@ -1,40 +1,95 @@
 <?php
-header('Content-Type: application/json');
+require_once __DIR__ . '/config/Logger.php';
+
+// Configurar cabeçalhos CORS
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Content-Type: application/json');
 
-if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-  exit(0);
+// Tratamento de requisições OPTIONS (preflight)
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
 }
 
-// Incluir model
-require_once 'models/VagaModel.php';
+// Inicializar logger
+$logger = new Logger();
 
-$input = json_decode(file_get_contents('php://input'), true);
-$action = $_GET['action'] ?? '';
+try {
+    // Registrar requisição
+    $logger->info("Requisição: {$_SERVER['REQUEST_METHOD']} {$_SERVER['REQUEST_URI']}");
 
-$model = new VagaModel();
+    // Roteamento básico
+    $path = $_SERVER['PATH_INFO'] ?? '';
+    $method = $_SERVER['REQUEST_METHOD'];
 
-switch ($action) {
-  case 'buscarVagas':
-    $termo = filter_var($input['termo'] ?? '', FILTER_SANITIZE_STRING);
-    // Removemos os argumentos extras que não são usados pelo VagaModel agora.
-    $vagas = $model->buscarVagasReais($termo);
-    echo json_encode($vagas);
-    break;
+    // Importar controlador
+    require_once 'controllers/VagasController.php';
+    $controller = new VagasController();
 
-  case 'perguntarIA':
-    $pergunta = filter_var($input['pergunta'] ?? '', FILTER_SANITIZE_STRING);
-    $resposta = $model->consultarIA($pergunta);
-    echo json_encode(['resposta' => $resposta]);
-    break;
+    switch ($path) {
+        case '/vagas':
+            if ($method === 'GET') {
+                $controller->listar();
+            } elseif ($method === 'POST') {
+                $controller->criar();
+            } else {
+                throw new Exception('Método não permitido');
+            }
+            break;
 
-  case 'test':
-    echo json_encode(['status' => 'success', 'message' => 'API ONLINE - ZERO VAGAS FAKE']);
-    break;
+        case '/vagas/buscar':
+            if ($method === 'GET') {
+                $controller->buscar();
+            } else {
+                throw new Exception('Método não permitido');
+            }
+            break;
 
-  default:
-    echo json_encode(['error' => 'Ação não encontrada: ' . $action]);
-    break;
+        case '/vagas/atualizar':
+            if ($method === 'PUT') {
+                $controller->atualizar();
+            } else {
+                throw new Exception('Método não permitido');
+            }
+            break;
+
+        case '/vagas/excluir':
+            if ($method === 'DELETE') {
+                $controller->excluir();
+            } else {
+                throw new Exception('Método não permitido');
+            }
+            break;
+
+        case '/vagas/categoria':
+            if ($method === 'GET') {
+                $controller->buscarPorCategoria();
+            } else {
+                throw new Exception('Método não permitido');
+            }
+            break;
+
+        case '/vagas/recentes':
+            if ($method === 'GET') {
+                $controller->buscarRecentes();
+            } else {
+                throw new Exception('Método não permitido');
+            }
+            break;
+
+        default:
+            throw new Exception('Rota não encontrada');
+    }
+
+} catch (Exception $e) {
+    $logger->error("Erro na requisição: " . $e->getMessage());
+
+    http_response_code(500);
+    echo json_encode([
+        'sucesso' => false,
+        'erro' => 'Erro interno do servidor'
+    ]);
 }
+?>

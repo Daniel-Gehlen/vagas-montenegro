@@ -2,18 +2,31 @@
   "env": {
     "browser": true,
     "es2021": true,
-    "node": true
+    "node": true,
+    "jest": true
   },
   "extends": [
     "eslint:recommended",
-    "plugin:prettier/recommended"
+    "prettier"
+  ],
+  "plugins": [
+    "jest",
+    "testing-library"
   ],
   "parserOptions": {
-    "ecmaVersion": "latest",
+    "ecmaVersion": 12,
     "sourceType": "module"
   },
   "rules": {
-    "no-unused-vars": "warn",
-    "no-console": "off"
-  }
+    "no-console": "warn",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "prefer-const": "error",
+    "no-var": "error"
+  },
+  "overrides": [
+    {
+      "files": ["**/__tests__/**/*", "**/*.test.*", "**/*.spec.*"],
+      "extends": ["plugin:testing-library/react"]
+    }
+  ]
 }
